@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RRRR Positive Talk & Coping Strategies Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #1a202c;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 900px;
+            background: linear-gradient(135deg, #a7e2f5, #f5d0fe);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .question-card, .scoreboard-card, .results-card, .start-card, .donation-card, .message-box, .insight-card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease-in-out;
+            transform: scale(0.98);
+            opacity: 0;
+            display: none;
+        }
+        .question-card.active, .scoreboard-card.active, .results-card.active, .start-card.active, .donation-card.active, .message-box.active, .insight-card.active {
+            transform: scale(1);
+            opacity: 1;
+            display: block;
+        }
+
+        .answer-button {
+            background-color: #ffffff;
+            border: 2px solid transparent;
+            color: #4a5568;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+        .answer-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .answer-button.correct {
+            background-color: #48bb78; /* Green */
+            color: white;
+            transform: scale(1.02);
+        }
+        .answer-button.incorrect {
+            background-color: #f56565; /* Red */
+            color: white;
+            transform: scale(1.02);
+        }
+        .answer-button.disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .timer-bar-container {
+            height: 12px;
+            background-color: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 1.5rem;
+        }
+        .timer-bar {
+            height: 100%;
+            background-color: #f6ad55;
+            transition: width linear;
+        }
+        .leaderboard-item {
+            background-color: #edf2f7;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .leaderboard-item.first {
+            background: linear-gradient(45deg, #fce38a, #ffc940);
+            transform: scale(1.05);
+            font-weight: 700;
+        }
+        .leaderboard-item.second {
+            background: linear-gradient(45deg, #e2e8f0, #c0c6cc);
+        }
+        .leaderboard-item.third {
+            background: linear-gradient(45deg, #e4c4b6, #ba928a);
+        }
+        .pulsing-btn {
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 0 0 0 rgba(100, 21, 255, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(100, 21, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(100, 21, 255, 0); }
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Game state and variables
+        
+        // --- IMPORTANT: THE CODE HAS BEEN UPDATED TO USE THE CORRECT FIREBASE CONFIGURATION PROVIDED BY THE ENVIRONMENT. ---
+        let db, auth, userId;
+        let gameRef, playersRef, gameListener, playersListener;
+
+        let gameData = {};
+        const gameStates = {
+            START: 'start',
+            QUESTION: 'question',
+            LEADERBOARD: 'leaderboard',
+            RESULTS: 'results',
+        };
+
+        const quizQuestions = [
+            {
+                question: "What is 'positive self-talk'?",
+                options: [
+                    "Saying nice things to your friends.",
+                    "Complaining about your day.",
+                    "Saying encouraging and kind things to yourself.",
+                    "Talking to yourself in the mirror.",
+                ],
+                answer: "Saying encouraging and kind things to yourself.",
+            },
+            {
+                question: "Which of these is an example of positive self-talk?",
+                options: [
+                    "I'm not good at this.",
+                    "This is too hard for me.",
+                    "I can try my best and learn from my mistakes.",
+                    "I should give up.",
+                ],
+                answer: "I can try my best and learn from my mistakes.",
+            },
+            {
+                question: "What is a 'coping strategy'?",
+                options: [
+                    "A way to get what you want.",
+                    "A way to deal with difficult feelings and situations.",
+                    "A type of exercise.",
+                    "A secret message.",
+                ],
+                answer: "A way to deal with difficult feelings and situations.",
+            },
+            {
+                question: "If you are feeling stressed about a test, what is a good coping strategy to use?",
+                options: [
+                    "Yell at your friends.",
+                    "Ignore the feeling and hope it goes away.",
+                    "Take a few deep breaths and talk to a teacher or parent.",
+                    "Run away from the problem.",
+                ],
+                answer: "Take a few deep breaths and talk to a teacher or parent.",
+            },
+            {
+                question: "What should you do if a negative thought comes into your mind?",
+                options: [
+                    "Believe it and feel bad.",
+                    "Push it away and don't think about it.",
+                    "Acknowledge the thought and replace it with a positive one.",
+                    "Tell everyone about your negative thought.",
+                ],
+                answer: "Acknowledge the thought and replace it with a positive one.",
+            },
+            {
+                question: "Which phrase is a positive way to reframe 'I made a mistake'?",
+                options: [
+                    "I am a failure.",
+                    "I'll never get this right.",
+                    "That was a good try, I'll learn from this for next time.",
+                    "This is proof I'm not smart enough.",
+                ],
+                answer: "That was a good try, I'll learn from this for next time.",
+            },
+            {
+                question: "Taking a short walk, listening to music, or drawing can be examples of which coping strategy?",
+                options: [
+                    "Hiding from your problems.",
+                    "Mindfulness and relaxation techniques.",
+                    "Making things worse.",
+                    "Procrastinating.",
+                ],
+                answer: "Mindfulness and relaxation techniques.",
+            },
+            {
+                question: "How can 'I can do this' help you?",
+                options: [
+                    "It makes you better than everyone else.",
+                    "It gives you a magical power.",
+                    "It helps you feel more confident and less nervous.",
+                    "It makes the task easier to complete.",
+                ],
+                answer: "It helps you feel more confident and less nervous.",
+            },
+            {
+                question: "After a difficult day, what is a good way to practice self-care?",
+                options: [
+                    "Blame others for your feelings.",
+                    "Stay up all night watching TV.",
+                    "Talk about your feelings with someone you trust.",
+                    "Go to bed without thinking about it.",
+                ],
+                answer: "Talk about your feelings with someone you trust.",
+            },
+            {
+                question: "If you feel overwhelmed, a good coping strategy is to...",
+                options: [
+                    "Try to do everything at once.",
+                    "Break down the big task into smaller, manageable steps.",
+                    "Wait for someone else to do it.",
+                    "Completely give up on the task.",
+                ],
+                answer: "Break down the big task into smaller, manageable steps.",
+            },
+        ];
+
+        // UI elements
+        const startCard = document.getElementById('start-card');
+        const questionCard = document.getElementById('question-card');
+        const scoreboardCard = document.getElementById('scoreboard-card');
+        const resultsCard = document.getElementById('results-card');
+        const donationCard = document.getElementById('donation-card');
+        const messageBox = document.getElementById('message-box');
+        const insightCard = document.getElementById('insight-card');
+
+        const nicknameInput = document.getElementById('nickname-input');
+        const joinBtn = document.getElementById('join-btn');
+
+        const questionTextEl = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const timerBar = document.getElementById('timer-bar');
+        const scoreDisplay = document.getElementById('score-display');
+        const donationPrompt = document.getElementById('donation-prompt');
+
+        const scoreboardList = document.getElementById('scoreboard-list');
+        const finalResultsList = document.getElementById('final-results-list');
+        const scoreboardTitle = document.getElementById('scoreboard-title');
+        const currentQuestionNumber = document.getElementById('current-question-number');
+
+        const insightTextEl = document.getElementById('insight-text');
+        const getInsightBtn = document.getElementById('get-insight-btn');
+
+        let timerInterval;
+        let lastAnswerResult = null; // To store result for insight generation
+
+        // Helper functions
+        function showScreen(screenId) {
+            const allScreens = [startCard, questionCard, scoreboardCard, resultsCard, donationCard, messageBox, insightCard];
+            allScreens.forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function showMessage(title, message) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-text').textContent = message;
+            showScreen('message-box');
+        }
+        
+        // This function makes the Gemini API call
+        async function getGeminiInsight(question, answer, isCorrect) {
+            const prompt = `You are a friendly and encouraging tutor for a children's quiz game. The quiz is about positive self-talk and coping strategies.
+            The question was: "${question}".
+            The correct answer was: "${answer}".
+            The player's answer was ${isCorrect ? 'correct' : 'incorrect'}.
+            Provide a very concise, positive, and encouraging explanation (one short paragraph) of why the correct answer is a good strategy or concept. Avoid complex language. Start the explanation with "That's a great question!".`;
+            
+            getInsightBtn.textContent = 'Generating...';
+            getInsightBtn.disabled = true;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            try {
+                 const response = await fetch(apiUrl, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify(payload)
+                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                    insightTextEl.textContent = text;
+                } else {
+                    insightTextEl.textContent = "Oops, couldn't get an insight this time. Try again later!";
+                }
+
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                insightTextEl.textContent = "Something went wrong. Please try again.";
+            } finally {
+                getInsightBtn.textContent = 'Get More Insights ✨';
+                getInsightBtn.disabled = false;
+                showScreen('insight-card');
+            }
+        }
+
+
+        async function initializeFirebase() {
+            try {
+                // Get the Firebase configuration from the environment
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = JSON.parse(__firebase_config);
+
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                // Sign in using the provided custom token or anonymously as a fallback
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                userId = auth.currentUser.uid;
+                
+                // Set up the correct document and collection references
+                gameRef = doc(db, 'artifacts', appId, 'public/data', 'games', appId);
+                playersRef = collection(db, 'artifacts', appId, 'public/data', 'players');
+
+                const gameDoc = await getDoc(gameRef);
+
+                if (!gameDoc.exists()) {
+                    // Host-side logic: create the game session
+                    const newGameData = {
+                        state: gameStates.START,
+                        currentQuestionIndex: 0,
+                        questionStartTime: null,
+                        players: [], // This will be a list of user IDs
+                        isWaitingForAnswers: false,
+                        playersAnswered: []
+                    };
+                    await setDoc(gameRef, newGameData);
+                    showMessage('Game Hosted', `A new game has been created. Share this link with players to join. Game ID: ${appId}`);
+                }
+                
+                // Once firebase is initialized, show the start screen
+                showScreen('start-card');
+                setupRealtimeListeners();
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                showMessage('Connection Error', 'Failed to connect to the game server. Please try again.');
+            }
+        }
+
+        function setupRealtimeListeners() {
+            // Listen for changes in the main game state
+            gameListener = onSnapshot(gameRef, (doc) => {
+                if (doc.exists()) {
+                    gameData = doc.data();
+                    handleGameStateChange();
+                }
+            }, (error) => {
+                console.error("Error listening to game state:", error);
+            });
+
+            // Listen for changes in players' data
+            playersListener = onSnapshot(playersRef, (snapshot) => {
+                const playersList = snapshot.docs.map(doc => doc.data());
+                renderLeaderboard(playersList);
+            }, (error) => {
+                console.error("Error listening to players data:", error);
+            });
+        }
+
+        function handleGameStateChange() {
+            const state = gameData.state;
+            const currentQIndex = gameData.currentQuestionIndex;
+
+            // If game is in a new question state, show the question
+            if (state === gameStates.QUESTION && gameData.questionStartTime) {
+                showQuestion(currentQIndex);
+            } else if (state === gameStates.LEADERBOARD) {
+                showScreen('scoreboard-card');
+                scoreboardTitle.textContent = `Scoreboard After Question ${currentQIndex}`;
+            } else if (state === gameStates.RESULTS) {
+                showResults();
+            } else if (state === gameStates.START) {
+                // Do nothing if already on start screen
+            }
+        }
+
+        async function joinGame() {
+            const nickname = nicknameInput.value.trim();
+            if (nickname.length === 0) {
+                showMessage('Whoops!', 'Please enter a nickname to join.');
+                return;
+            }
+
+            const playerRef = doc(db, 'artifacts', appId, 'public/data', 'players', userId);
+            try {
+                await setDoc(playerRef, {
+                    id: userId,
+                    name: nickname,
+                    pointsDonated: 0,
+                    correctAnswers: 0
+                });
+
+                // Update the main game session with the new player's ID
+                await updateDoc(gameRef, {
+                    players: gameData.players ? [...gameData.players, userId] : [userId]
+                });
+
+                showMessage('Joined!', `You have joined the game as "${nickname}". Waiting for the host to start.`);
+            } catch (e) {
+                console.error("Error joining game: ", e);
+                showMessage('Error', 'Could not join the game. Please try a different nickname or try again.');
+            }
+        }
+
+        function startNextQuestion() {
+             const nextQuestionIndex = gameData.currentQuestionIndex;
+            if (nextQuestionIndex < quizQuestions.length) {
+                const updatedState = {
+                    state: gameStates.QUESTION,
+                    currentQuestionIndex: nextQuestionIndex,
+                    questionStartTime: Date.now(),
+                    playersAnswered: [],
+                };
+                 updateDoc(gameRef, updatedState);
+                 showQuestion(nextQuestionIndex);
+            } else {
+                updateDoc(gameRef, { state: gameStates.RESULTS });
+            }
+        }
+
+        function showQuestion(qIndex) {
+            if (qIndex >= quizQuestions.length) {
+                return;
+            }
+
+            const questionData = quizQuestions[qIndex];
+            questionTextEl.textContent = questionData.question;
+            currentQuestionNumber.textContent = `Question ${qIndex + 1} of ${quizQuestions.length}`;
+            optionsContainer.innerHTML = '';
+            
+            // Randomize options
+            const shuffledOptions = questionData.options.sort(() => Math.random() - 0.5);
+
+            shuffledOptions.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.className = 'answer-button my-2 transition duration-300 ease-in-out hover:bg-gray-100 hover:scale-105';
+                button.onclick = () => handleAnswer(option, questionData.answer);
+                optionsContainer.appendChild(button);
+            });
+            
+            showScreen('question-card');
+            startTimer(20);
+        }
+
+        function startTimer(duration) {
+            const startTime = Date.now();
+            clearInterval(timerInterval);
+            timerBar.style.width = '100%';
+
+            timerInterval = setInterval(() => {
+                const elapsedTime = Date.now() - startTime;
+                const remainingTime = duration * 1000 - elapsedTime;
+                const percentage = Math.max(0, (remainingTime / (duration * 1000)) * 100);
+                timerBar.style.width = `${percentage}%`;
+
+                if (remainingTime <= 0) {
+                    clearInterval(timerInterval);
+                    handleAnswer(null, null); // Time's up
+                }
+            }, 50);
+        }
+
+        async function handleAnswer(selectedOption, correctAnswer) {
+            clearInterval(timerInterval);
+
+            // Disable all buttons to prevent multiple answers
+            const buttons = optionsContainer.querySelectorAll('.answer-button');
+            buttons.forEach(btn => btn.classList.add('disabled'));
+
+            const playerRef = doc(db, 'artifacts', appId, 'public/data', 'players', userId);
+            const isCorrect = selectedOption === correctAnswer;
+            lastAnswerResult = { isCorrect, selectedOption, correctAnswer, question: quizQuestions[gameData.currentQuestionIndex].question };
+
+
+            // Update the player's correct answer count
+            if (isCorrect) {
+                await updateDoc(playerRef, {
+                    correctAnswers: (await getDoc(playerRef)).data().correctAnswers + 1
+                });
+            }
+
+            // Mark the correct and incorrect answers visually
+            buttons.forEach(btn => {
+                if (btn.textContent === correctAnswer) {
+                    btn.classList.add('correct');
+                } else if (btn.textContent === selectedOption) {
+                    btn.classList.add('incorrect');
+                }
+            });
+
+            // Update the game session with the player's response
+            await updateDoc(gameRef, {
+                playersAnswered: [...gameData.playersAnswered, userId]
+            });
+            
+            // Wait for all players to answer before moving on
+            let playersAnsweredCount = (await getDoc(gameRef)).data().playersAnswered.length;
+            if (playersAnsweredCount === gameData.players.length) {
+                setTimeout(() => {
+                    distributePoints();
+                }, 2000);
+            } else {
+                // Wait for other players to answer
+                showMessage("Answer Submitted", "Waiting for other players to submit their answers...");
+            }
+        }
+
+        async function distributePoints() {
+            const playersSnapshot = await getDocs(playersRef);
+            const players = playersSnapshot.docs.map(doc => doc.data());
+            
+            // Filter players who answered correctly
+            const correctPlayers = players.filter(p => p.id === userId && quizQuestions[gameData.currentQuestionIndex].answer === quizQuestions[gameData.currentQuestionIndex].options.find(opt => opt === quizQuestions[gameData.currentQuestionIndex].answer));
+
+            if (correctPlayers.length > 0) {
+                // The current player answered correctly, so they donate points
+                const playerToDonateTo = players.find(p => p.id !== userId);
+
+                if (playerToDonateTo) {
+                    try {
+                        await runTransaction(db, async (transaction) => {
+                            const currentPlayerDoc = await transaction.get(doc(db, 'artifacts', appId, 'public/data', 'players', userId));
+                            const playerToDonateToDoc = await transaction.get(doc(db, 'artifacts', appId, 'public/data', 'players', playerToDonateTo.id));
+
+                            const newDonatedPoints = currentPlayerDoc.data().pointsDonated + 100;
+
+                            transaction.update(doc(db, 'artifacts', appId, 'public/data', 'players', userId), {
+                                pointsDonated: newDonatedPoints
+                            });
+                        });
+                        donationPrompt.textContent = `You gave 100 points away!`;
+                        
+                    } catch (e) {
+                        console.error("Transaction failed: ", e);
+                        donationPrompt.textContent = "Oops, something went wrong with the donation.";
+                    }
+                } else {
+                    donationPrompt.textContent = "You were the only one here! No one to donate to.";
+                }
+            } else {
+                donationPrompt.textContent = "Answered incorrectly! No points to donate.";
+            }
+
+            showScreen('donation-card');
+        }
+
+        async function renderLeaderboard(players) {
+            scoreboardList.innerHTML = '';
+            
+            // Sort by pointsDonated in descending order
+            const sortedPlayers = players.sort((a, b) => b.pointsDonated - a.pointsDonated);
+
+            sortedPlayers.forEach((player, index) => {
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                if (index === 0) item.classList.add('first');
+                if (index === 1) item.classList.add('second');
+                if (index === 2) item.classList.add('third');
+                
+                // Anonymize other players' names
+                const playerName = player.id === userId ? player.name : `Player ${index + 1}`;
+
+                item.innerHTML = `
+                    <span class="text-lg">${index + 1}. ${playerName}</span>
+                    <span class="text-2xl font-bold">${player.pointsDonated}</span>
+                `;
+                scoreboardList.appendChild(item);
+            });
+        }
+
+        async function showResults() {
+            const playersSnapshot = await getDocs(playersRef);
+            const players = playersSnapshot.docs.map(doc => doc.data());
+            const sortedPlayers = players.sort((a, b) => b.pointsDonated - a.pointsDonated);
+
+            finalResultsList.innerHTML = '';
+            sortedPlayers.slice(0, 3).forEach((player, index) => {
+                const item = document.createElement('li');
+                item.className = 'text-center p-4 rounded-xl shadow-lg m-2';
+                if (index === 0) {
+                    item.className += ' bg-yellow-400 text-yellow-900 first';
+                    item.innerHTML = `🥇 1st Place: ${player.name} - ${player.pointsDonated} points donated`;
+                } else if (index === 1) {
+                    item.className += ' bg-gray-300 text-gray-800 second';
+                    item.innerHTML = `🥈 2nd Place: ${player.name} - ${player.pointsDonated} points donated`;
+                } else if (index === 2) {
+                    item.className += ' bg-yellow-800 text-white third';
+                    item.innerHTML = `🥉 3rd Place: ${player.name} - ${player.pointsDonated} points donated`;
+                }
+                finalResultsList.appendChild(item);
+            });
+            showScreen('results-card');
+        }
+
+        // Event listeners
+        joinBtn.addEventListener('click', joinGame);
+        getInsightBtn.addEventListener('click', () => {
+            const { question, correctAnswer, isCorrect } = lastAnswerResult;
+            getGeminiInsight(question, correctAnswer, isCorrect);
+        });
+
+        // Let the host start the game with a button
+        document.getElementById('start-next-question-btn').addEventListener('click', () => {
+            startNextQuestion();
+        });
+        
+        // Initialize the app
+        window.onload = initializeFirebase;
+    </script>
+
+    <main class="game-container">
+        <!-- Start Screen -->
+        <div id="start-card" class="start-card active">
+            <h1 class="text-4xl font-bold text-gray-800 mb-6">Welcome to the Kindness Quiz!</h1>
+            <p class="text-lg text-gray-600 mb-8">Enter a nickname to join the game. You'll donate points and the person who gives away the most points wins!</p>
+            <div class="flex flex-col space-y-4">
+                <input type="text" id="nickname-input" class="p-4 text-center rounded-xl border-2 border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-200" placeholder="Enter your nickname">
+                <button id="join-btn" class="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-4 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition duration-300">Join Game</button>
+            </div>
+        </div>
+
+        <!-- Question Screen -->
+        <div id="question-card" class="question-card">
+            <h2 id="current-question-number" class="text-2xl font-bold text-gray-700 mb-4"></h2>
+            <p id="question-text" class="text-3xl font-semibold text-gray-800 mb-6"></p>
+            <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Answer buttons will be generated here -->
+            </div>
+            <div class="timer-bar-container">
+                <div id="timer-bar" class="timer-bar"></div>
+            </div>
+        </div>
+
+        <!-- Donation Screen -->
+        <div id="donation-card" class="donation-card">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">Time to Donate!</h2>
+            <p id="donation-prompt" class="text-lg text-gray-600 mb-6">You've answered correctly! Your points have been anonymously donated.</p>
+            <div class="mt-8 flex flex-col items-center">
+                <button id="get-insight-btn" class="bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105 transition duration-300">
+                    Get More Insights ✨
+                </button>
+            </div>
+        </div>
+        
+        <!-- Insight Screen (New) -->
+        <div id="insight-card" class="insight-card">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">A Little More Insight...</h2>
+            <p id="insight-text" class="text-lg text-gray-600 mb-6"></p>
+            <button onclick="showScreen('scoreboard-card')" class="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105 transition duration-300">Back to Scoreboard</button>
+        </div>
+
+
+        <!-- Scoreboard Screen -->
+        <div id="scoreboard-card" class="scoreboard-card">
+            <h2 id="scoreboard-title" class="text-3xl font-bold text-gray-800 mb-6">Live Scoreboard</h2>
+            <div id="scoreboard-list" class="space-y-3">
+                <!-- Scoreboard items will be rendered here -->
+            </div>
+            <div class="mt-8">
+                <button id="start-next-question-btn" class="bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105 transition duration-300 pulsing-btn">Next Question</button>
+            </div>
+        </div>
+
+        <!-- Final Results Screen -->
+        <div id="results-card" class="results-card">
+            <h2 class="text-4xl font-extrabold text-gray-800 mb-4">Final Results</h2>
+            <p class="text-xl font-semibold text-gray-600 mb-6">Congratulations to our Kindness Champions!</p>
+            <ul id="final-results-list" class="space-y-4">
+                <!-- Final winners will be rendered here -->
+            </ul>
+        </div>
+
+        <!-- Message Box Modal -->
+        <div id="message-box" class="message-box modal-overlay">
+            <div class="modal-content">
+                <h3 id="message-title" class="text-2xl font-bold text-gray-800 mb-4"></h3>
+                <p id="message-text" class="text-lg text-gray-600 mb-6"></p>
+                <button onclick="showScreen('start-card')" class="bg-gray-400 text-white font-bold py-2 px-6 rounded-full hover:bg-gray-500 transition duration-300">OK</button>
+            </div>
+        </div>
+
+    </main>
+</body>
+</html>
